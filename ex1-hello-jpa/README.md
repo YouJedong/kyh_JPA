@@ -40,3 +40,43 @@
         3. 지연 로딩과 즉시 로딩 가능
         지연로딩: 객체가 실제 사용될 때 로딩
         즉시로딩: JOIN SQL로 한번에 연관된 객체까지 미리 조회
+
+### JPA 설정하기
+
+- 프로젝트 환경
+    - 자바17
+    - 하이버네이트 6
+    - h2 2.2.224
+    - maven
+- persistance.xml 설정하기
+    - resource/META-INF/persistance.xml을 생성
+    - 설정 중 원래 javax의 패키지 이름을 jakarta로 변경해야함
+    - propertie설정 중 hibernate.dialect 설정*
+
+        ```java
+        <property name="hibernate.dialect" value="org.hibernate.dialect.H2Dialect"/>
+        ```
+
+      데이터 베이스의 종류에 따라 특정 함수가 존재하는데 이런 차이에 따른 종속성을 없애기 위해 위 처럼 설정함
+      *h2를 사용하면 H2Dialect, mysql을 사용하면 MySQLDialect
+
+
+### JPA 사용
+
+```java
+EntityManagerFactory emf = Persistence.createEntityManagerFactory("hello");
+EntityManager em = emf.createEntityManager();
+```
+
+- EntityManagerFactory : 어플리케이션이 실행될 때 한번만 생성해서 계속 사용한다.
+- EntityManager: 한 요청에 한번 사용하고 버린다.(쓰레드에서 공유하면 x)
+- **JPA를 사용하면서 모든 데이터 변경은 트랜젝션 안에서 실행되어야 한다!!**
+- JPQL
+
+    ```java
+    List<Member> list = em.createQuery("SELECT m FROM Member AS m" ,Member.class)
+                    .getResultList();
+    ```
+
+    - 직접 쿼리를 작성해서 조회
+    - SQL과 JPQL의 차이점: SQL은 db의 테이블을 대상으로 쿼리 / JPQL은 객체를 대상으로 쿼리
