@@ -146,3 +146,96 @@ EntityManager em = emf.createEntityManager();
 ### 기타 정보
 
 - @Column 어노테이션의 속성은 ddl생성시에만 이용하고 런타임 중에는 영향을 주지 않는다.(속성으로 입력한 코드들은 ddl 생성할 때만 영향이 있다!)
+## 필드와 컬럼 맵핑
+
+### Entity 셋팅
+
+1. **@Enumerated**
+    - 자바의 Enum을 사용하고 싶을 때 Entity의 컬럼에 @Enumerated를 사용한다.
+        
+        ```java
+        @Enumerated(EnumType.STRING)
+        private RoleType roleType;
+        ```
+        
+    - *JPA > Enum 활용법
+        
+        [Java Enum 활용기 | 우아한형제들 기술블로그](https://techblog.woowahan.com/2527/)
+        
+2. **@Temporal**
+    - 일시 컬럼은 @Temporal을 사용한다.
+        
+        ```java
+        @Temporal(TemporalType.TIMESTAMP)
+        private Date createdDate;
+        ```
+        
+    - 최신 하이버네이트에서는 이 어노테이션을 사용하지 않고 **LocalDate**, **LocalDateTime** 클래스를 사용해도 된다.
+3. **@Lob**
+    - varchar를 넘어서는 컨텐츠는 @Lob을 사용한다.
+        
+        ```java
+        @Lob
+        private String description;
+        ```
+        
+4. @Transient
+    - DB와 맵핑시키지 않고 자바에서만 사용하고 싶을 때
+
+### @Column의 속성
+
+1. insertable, updatable
+    - 등록, 변경의 가능 여부
+    - 기본은 true - 등록, 변경 시 해당 컬럼 변경됨
+    - false로 셋팅하면 데이터 등록, 변경 시 db에 반영 안됨
+    
+
+### @Enumerated 주의점
+
+- 속성에 ordinary를 사용하지 마라!
+    - ordinary를 사용하게 되면 db에 enum의 값이 순서대로 숫자로 들어가기 때문에 나중에 enum에 값을 추가하면 어떤 값인지 알 수 없음
+- 기본값이 ordinary이기 때문에 반드시 속성에 String으로 셋팅하자
+    
+    ```java
+    @Enumerated(EnumType.STRING)
+    private RoleType roleType;
+    ```
+    
+
+### @GeneratedValue
+
+**GenerationType.*IDENTITY의 특징***
+
+- 이 속성은 db의 기본키 전략을 이용하기 때문에 JPA로 insert할 때 영속성 컨텍스트에 보관하지 않고 바로 db로 쿼리를 날린다.
+    
+    why? 직접 db에 날리지 않으면 현재 insert한 레코드의 id를 알 수 가 없다. 그래서  insert를 한 후 해당 id를 알기위해 바로 db에 날리는 것
+    
+
+**GenerationType.SEQUENCE 사용 시 최적화**
+
+- 이 속성은 미리 DB에 시퀀스를 만들어 사용하는 속성이다.
+- insert를 할 때 지금 사용해야할 id의 시퀀스를 가져오기 때문에 insert할 때마다 db 접속을 한다.
+- 이런 성능 저하를 최적화 하기위해 **미리 특정 개수의 시퀀스를 미리 가지고 온다**.
+    
+    ```java
+    @Entity
+    @Table(name = "Member")
+    @SequenceGenerator(
+            name = "MEMBER_SEQ_GENERATOR",
+            sequenceName = "MEMBER_SEQ",
+            initialValue = 1, allocationSize = 50 // 1부터 시작해서 +50으로 늘린다. >> 이곳에서 50까지 미리 할당해 놓는다.
+    )
+    public class Member0505 {
+    
+        @Id
+        @GeneratedValue(strategy = GenerationType.SEQUENCE,
+                    generator = "MEMBER_SEQ_GENERATOR")
+        private Long id;
+    ```
+    
+
+*H2 연결 오류 해결
+
+- 오류 : h2에서 새로운 db 생성이 안됨
+- 해결 : 새로 생성할 때는 url을 jdbc:h2:~/jpashop 이런식으로 하고 이제 두번째부터는 jdbc:h2:tcp://[localhost/~/jpashop](http://localhost/~/jpashop) 이렇게 들어가야한다.
+

@@ -3,8 +3,8 @@ package hellojpa;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 
-@Entity
-public class Member {
+//@Entity
+public class MemberBefsore0505 {
 
     @Id
     private Long id;
