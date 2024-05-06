@@ -239,3 +239,129 @@ EntityManager em = emf.createEntityManager();
 - 오류 : h2에서 새로운 db 생성이 안됨
 - 해결 : 새로 생성할 때는 url을 jdbc:h2:~/jpashop 이런식으로 하고 이제 두번째부터는 jdbc:h2:tcp://[localhost/~/jpashop](http://localhost/~/jpashop) 이렇게 들어가야한다.
 
+## 연관관계 매핑
+
+### 객체를 테이블에 맞춰서 맵핑 했을 때 문제점
+
+- 객체(Entity)를 테이블에 맞춰서 코드를 작성 했을 때!
+    - 등록시 - 외래키 식별자를 직접 다룸 → 코드를 작성할 때 외래키가 있다면 직접 해당 외래키를 가지고 등록한다.
+    - 조회시 - 외래키를 가진 객체 조회 후 다시 외래키로 한번 더 조회한다.
+    - 둘 다 객체지향적인 방법이 아님
+
+### 단방향 연관관계
+
+(jpa-ex-0505 프로젝트 참고)
+
+- 자바 코드에 Entity에 참조할 Entity를 작성하고 @ManyToOne (다 에서 1) 어노테이션을 붙인다.
+    
+    ```java
+    @Entity
+    public Member {
+    	
+    	@Id
+    	private Long id;
+    	
+    	@ManyToOne
+    	@JoinColumn(name = "TEAM_ID") // join할 때 필요한 컬럼 셋팅
+    	private Team team;
+    	
+    }
+    ```
+    
+
+### 양방향 연관관계와 연관관계 주인
+
+(jpa-ex-0505 프로젝트 참고)
+
+**양방향 연관관계?** 
+
+- 테이블에서는 Member와 Team이 TEAM_ID라는 외래키로 양방향으로 연결되어있다. (TEAM_ID만 있으면 서로 연관을 맺을 수 있다.)
+- 하지만 자바의 객체에서는 이렇게 양방향으로 연관을 맺으려면 서로 참조하는 필드를 만들어 줘야한다.
+    
+    ```java
+    // Member.class
+    @Entity
+    public Member {
+    		
+    		......
+    		
+    		@ManyToOne
+    		private Team team;
+    		
+    }
+    
+    // Team.class
+    @Entity
+    public Team {
+    		.....
+    		
+    		@OneToMany(mappedBy = "team") // 이렇게 양방향으로 맵핑 셋팅
+    		private List<Member> members = new ArrayList<>();
+    		
+    }
+    ```
+    
+- 하지만 사실 객체에서 양방향을 설정했을 때 단방향으로 연결된 필드가 2개가 생기는 것이다.
+그렇다면 JPA로 수정,등록을 할 때 Member의 team / Team의 Members 이 둘중 어떤 것을 참조해서 쿼리를 날려야 할까?
+(Member의 team에 값을 변경해도 DB가 수정되고 Team의 Members의 값을 수정해도 DB에서 수정되는 오류가 발생함)
+- 따라서 둘 중 한군데에서만 등록/수정을 처리해야한다. → **연관관계의 주인**을 설정해야한다.
+
+**연관관계의 주인**
+
+- 연관 관계의 주인을 설정하려면 주인이 아닌 필드에 mappedBy 속성을 설정해야한다.
+    
+    ```java
+    @OneToMany(mappedBy = "team") // "Member의 team이라는 변수가 주인이다" 라는 설정
+    private List<Member> members = new ArrayList<>();
+    ```
+    
+- 이렇게 설정하면 연관관계의 주인인 Member의 team은 **등록/수정/조회**가 가능하고 Team의 members는 **조회**만 가능하다
+- **누구를 주인으로 설정해야할까? → 외래키가 있는 객체를 주인으로 정하라**
+
+**양방향 연관관계 사용시 주의점**
+
+- 실제로 등록/수정되는 필드에 값을 넣어야 JPA에서 해당 쿼리가 동작한다. → 하지만 객체 지향적으로 사용하기 위해 mappedBy로 설정한 필드에도 값을 설정해 놓는다.
+    
+    ```java
+    // Main.class
+    Team t = new Team();
+    t.setName("team1");
+    em.persist(t);
+    
+    Member m = new Member();
+    m.setName("member1");
+    m.setTeam(t); // 실제 Member에 teamId가 맵핑되는 코드
+    em.persist(m);
+    
+    t.getMembers().add(m); // 등록되는 쿼리가 실행되지는 않지만 객체 지향적으로 셋팅해주는 곳
+    ```
+    
+    *t.getMembers().add(m); 코드의 이점
+    
+    - JPA의 구조 상 바로 insert되지않고 영속성 컨텍스트에 저장해놓기 때문에 위의 로직이 실행된 후 t.getMembers()의 값을 사용해야 한다면 반드시 add를 해놓아야한다.
+
+**양뱡향 연관관계 사용 결론**
+
+1. t.getMembers().add(m); 이런식으로 셋팅하는 것을 누락할 수 있기 때문에 **연관관계 편의 메서드**를 만들자
+    
+    ```java
+    //Member.class
+    public Member {
+    		....
+    		
+    		public changeTeam(Team team) {
+    				this.team = team;
+    				
+    				team.getMembers().add(this); // 이렇게 member(=this)를 넣는 코드를 추가한다. 
+    		}		
+    
+    }
+    ```
+    
+2. 양방향 매핑시 무한 루프를 조심해라! → toString, lombok의 toString, Json 생성라이브러리
+    - lombok의 toString()은 쓰지마라!
+    - Json 생성라이브러리 ex) Spring의 controller단 response → 응답을 Entity로 하지말고 Dto를 만들어서 반환해라
+3. 단방향 매핑만으로도 이미 연관관계 매핑은 완료된 것이고 양방향 매핑은 객체 그래프 탐색 기능을 추가한 것 뿐이다.
+따라서 단방향 매핑만 잘하고 그 후 개발하면서 필요할 때 양방향 매핑을 사용하라
+
+### 연관관계 매핑 실전 예제 : jpa-ex-05062
