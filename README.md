@@ -377,3 +377,120 @@ EntityManager em = emf.createEntityManager();
 > 일대다 연관관계 매핑 예제 : jpa-ex-0508-member-team
 >
 
+## 일대일
+
+> 일대일 예제 : jpa-ex-0511-member-locker
+> 
+
+### 일대일 매핑 방법
+
+```java
+// Member.class
+@Entity
+Member {
+	.........
+	
+	@OneToOne
+	@JoinColumn(name = "LOCKER_ID")
+	private String Locker
+}
+
+// Locker.class
+@Entity
+Locker {
+	.........
+	
+	@OneToOne(mappedBy = "locker")
+	private String Locker
+}
+```
+
+1. ManyToOne과 같이 외래키가 있는 엔티티에 @OneToOne과 @JoinColumn을 셋팅한다.
+2. 양방향으로 쓰고싶다면 매칭된 엔티티에 @OneToOne과 속성으로 mappedBy를 추가한다.
+
+### 일대일 연관관계일 때 DB에서 외래키의 위치
+
+- 일대일 연관관계라면 외래키의 위치를 Member, Locker 테이블 둘 중 하나로 설정할 수 있음
+    - ex) member_id를 Locker테이블의 외래키+유니크로 `or` locker_id를 Member테이블의 외래키+유니크 → 둘중 하나로 선택 가능
+- 두 선택지는 장단점을 가지고 있음
+    - Member(주 테이블)에 외래키를 놓을 경우
+        - 장점: 주 테이블만 조회해도 대상 테이블(Locker)에 데이터가 있는지 확인 가능
+        - 단점: 값이 없으면 외래키에 null이 허용됨
+    - Locker(대상 테이블)에 외래키를 놓을 경우
+        - 장점: 나중에 일대일관계에서 일대다로 바뀌었을 때 DB수정이 용이함
+        - 단점: JPA의 지연 로딩을 사용할 수 없어서 즉시 로딩됨
+- **결론: JPA를 사용할 때는 주테이블(Member)에 외래키를 놓는 것이 적절함 하지만 DB 측면에서는 애매할 수 있기 때문에 DBA와 적절한 대화가 필요**
+
+## 다대다
+
+- 결론적으로 사용하면 안됨
+- @ManyToMany로 두 객체를 연결하면 자동으로 DB에 중간 테이블이 생성되지만 그 중간 테이블에 다른 컬럼을 설정할 수 없음
+- **결론 : @ManyToMany를 사용하지 말고 실제로 중간 객체를 만들어서 일대다 다대일 관계로 만들어서 사용하라**
+    
+    <img width="578" alt="노션이미지01" src="https://github.com/YouJedong/kyh_JPA/assets/108327853/034d50fd-bb32-45d8-97a5-3e424218b9f9">
+    
+    - 중간 테이블에서 ORDER_ID로 PK를 둘 수도 있고 MEMBER_ID + PRODUCT_ID를 합쳐서 PK로 둘 수 있는데 JPA에서는 따로 ORDER_ID를 만들어서 사용하는 것을 **추천**
+
+## 상속관계 맵핑
+
+- 객체는 상속의 기능이 있지만 DB는 상속의 기능이 없다.
+- 따라서 DB에서는 객체의 상속의 기능을 3가지 방식으로 만들 수 있다.
+
+### 1. 조인 전략
+
+<img width="372" alt="노션이미지02" src="https://github.com/YouJedong/kyh_JPA/assets/108327853/925a22a9-b43a-4409-8506-6b86961abbe3">
+
+- 상위 테이블 1개와 하위 테이블 3개를 만드는 전략
+- 부모 클래스에 @Inheritance로 설정한다.
+    
+    ```java
+    // Item.class
+    @Entity
+    @Inheritance(strategy = InheritanceType.JOINED)
+    abstract class Item {
+    	.....
+    }
+    ```
+    
+    - 그럼 자식 클래스를 등록이나 조회를 했을 때 상위 테이블도 같이 insert, join한다.
+- 하위 테이블의 값을 상위 테이블에 저장하고 싶다면 (DTYPE) @DiscriminatorColumn을 사용하면 컬럼이 자동 생성되고
+자식 클래스의 이름으로 값이 들어간다.
+    
+    ```java
+    @Entity
+    @Inheritance(strategy = InheritanceType.JOINED)
+    @DiscriminatorColumn
+    public abstract class Item {}
+    ```
+    
+
+### 2. 단일 테이블 전략
+
+- 테이블 하나만 만들어서 모든 컬럼을 다 넣고 타입값으로 무슨 종류인지 구분하는 전략
+- @Inheritance(strategy = InheritanceType.SINGLE_TABLE)
+- @DiscriminatorColumn이 없어도 dtype이 자동생성된다.
+
+### 3. 구현 클래스마다 생성
+
+- 테이블을 완전 나누는 전략 @Inheritance(strategy = InheritanceType.*TABLE_PER_CLASS*)
+- @DiscriminatorColumn이 필요없다.
+- 단점 - 부모 클래스로 조회할 때 따로 만들어진 테이블을 다 union all해서 가져온다.
+    
+    ```java
+    Item findItem = em.find(Item.class, movie.getId());
+    ```
+    
+
+### 전략 장단점
+
+| 전략 | 장점 | 단점 |
+| --- | --- | --- |
+| 조인 | 테이블 정규화, 저장공간 효율화 | 조회 시 조인이 많아질 수 있음, 저장할 때 insert 2번 나감, 복잡함 |
+| 단일 테이블 | 조인이 필요x, 쿼리 단순 | 모든 자식 컬럼은 null 허용해야함, 테이블이 커져서 성능이 느려질 수 있음 |
+| 구현 클래스 |  | 쓰지 말자^^ |
+
+**결론: 조인 전략과 단일 테이블 전략의 트레이드 오프를 비교해서 둘 중에 하나로 결정하자**
+
+### @Mapped Superclass
+
+- 공통으로 쓰는 컬럼을 설정하는 클래스에 어노테이션을 붙이고 하위 클래스에서 상속을 받으면 DB에 각각 테이블에 컬럼이 생성됨
