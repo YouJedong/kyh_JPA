@@ -494,3 +494,22 @@ Locker {
 ### @Mapped Superclass
 
 - 공통으로 쓰는 컬럼을 설정하는 클래스에 어노테이션을 붙이고 하위 클래스에서 상속을 받으면 DB에 각각 테이블에 컬럼이 생성됨
+## 상속 및 MappedSuperclass 예제
+
+> 예제 - jpa-ex-0513_1-jpaShop
+> 
+
+### 예제 진행 중 오류 해결
+
+```java
+// 오류
+@ManyToMany(mappedBy = "items")
+private ArrayList<Category> categories = new ArrayList<>();
+
+// 해결법
+private List<Category> categories = new ArrayList<>();
+```
+
+- 이전 예제 진행 중 위의 코드처럼 Entity안에 해당 필드를 ArrayList로 했더니 타입 오류가 나왔다.
+- ArrayList를 List로 바꾸었더니 해결되었다.
+- 이유 : ??
