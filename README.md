@@ -513,3 +513,37 @@ private List<Category> categories = new ArrayList<>();
 - 이전 예제 진행 중 위의 코드처럼 Entity안에 해당 필드를 ArrayList로 했더니 타입 오류가 나왔다.
 - ArrayList를 List로 바꾸었더니 해결되었다.
 - 이유 : ??
+
+## 프록시
+
+```java
+Member findMember = em.getReference(Member.class, member.getId());
+```
+
+- em.find() 대신 em.getReference()를 사용하면 데이터베이스 조회를 미루는 가짜(프록시) 엔티티 객체를 조회한다.
+- 실제로 DB에 쿼리를 던지는 타이밍은 해당 객체를 사용할 때 쿼리를 던진다.
+
+### 프록시 특징
+
+- 프록시 흐름
+    1. 아직 쿼리를 조회하지않은 상태같이 프록시 안에 값이 없을 때 해당 객체를 사용하면 **영속성 컨텍스트**에게 초기화를 요청한다.
+    2. 영속성 컨텍스트는 DB를 조회한다.
+    3. 조회된 값을 실제 entity로 생성해서 프록시는 해당 entity에서 값을 빼서 쓴다.
+- 프록시 객체는 처음 사용할 때 한 번만 초기화된다.
+- 프록시 객체가 실제로 엔티티로 바뀌는 것이 아님! 프록시 객체를 통해 실제 엔티티에 접근하는 것!
+- 프록시 객체의 타입 체크할 때는 == 으로 하면 안되고 instance of 로 비교해야함
+- 같은 트랜젝션에서 영속성 컨텍스트에 있는 동일한 객체는 항상 ==을 만족해야한다.
+    - 영속성 컨텍스트에 찾는 엔티티가 이미 있으면 em.getReference()를 사용했어도 프록시 객체가 아닌 실제 엔티티가 반환됨
+    - 프록시로 한번 조회하면 em.find로 조회했어도 프록시 객체를 반환함
+- 영속성 컨텍스트의 도움을 받을 수 없는 준영속 상태일 때 프록시를 초기화하려고 하면 오류가 나온다.
+    
+    ```java
+    Member refMember = em.getReference(Member.class, 1L);
+    
+    // 영속성 컨텍스트를 준영속 상태로 만듬
+    1. em.close();
+    2. em.clear();
+    3. em.detach(refMember);
+    
+    refMember.getUsername(); // 오류남
+    ```
