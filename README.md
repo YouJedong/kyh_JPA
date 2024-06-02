@@ -547,3 +547,99 @@ Member findMember = em.getReference(Member.class, member.getId());
     
     refMember.getUsername(); // 오류남
     ```
+
+## 지연로딩 즉시로딩
+
+### 지연로딩 - Lazy를 사용하여 프록시를 조회
+
+```java
+@Entity
+public class Member {
+	....
+	
+	@ManyToOne(fetch = FatchType.LAZY) <<
+	@JonColumn(name = 'TEAM_ID')
+	private Team team;
+}
+```
+
+- Member를 em.find()하면 Team을 Join하지 않고 getTeam().getName()을 했을 때 쿼리를 던진다.
+
+### 즉시로딩 - EAGER를 사용하여 함께 조회
+
+```java
+@Entity
+public class Member {
+	....
+	
+	@ManyToOne(fetch = FatchType.EAGER) <<
+	@JonColumn(name = 'TEAM_ID')
+	private Team team;
+}
+```
+
+- Member를 em,find()할 때 join을 사용하여 함께 가져오기 때문에 프록시 객체가 아님
+
+### 프록시와 즉시로딩 주의
+
+- 실무에서는 가급적 **지연 로딩**만 사용해라 - 연관관계가 여러개가 있다면 Member를 조회할 때 모든 연관 테이블을 조인하여 조회함(성능 이슈)
+- 즉시로딩을 사용하면 JPQL을 사용할 때 N + 1 문제를 일으킨다. ex) Member 목록을 조회할 때 회원의 수만큼 연관된 관계의 테이블을 일일이 조회한다.
+- @ManyToOne, @OneToOne 은 기본이 즉시로딩 / @OneToMany, @ManyToMany는 기본이 지연 로딩
+
+> **결론: 실무에서는 모든 연관관계는 지연로딩으로 만들자**
+> 
+
+### 영속성 전이(CASCADE)
+
+```java
+@ManyToOne(CascadeType.All)
+```
+
+- 하나의 엔티티를 persist()할 때 연관된 entity도 같이 관리하고 싶을 때 사용 ex) parent 엔티티를 등록할 때 포함된 children도 같이 등록되게 만들 때
+- 영속성 전이는 연관관계를 매핑하는 것과 아무 관련없음. 그냥 엔티티를 영속화 할 때 연관된 엔티티도 함께 영속화하는 편리함을 제공
+- 종류
+    1. All : 모든 CRUD
+    2. PERSIST : 등록/수정 시
+    3. REMOVE : 삭제 시
+
+> **결론: 자식 엔티티가 다른 것과 연관되어있지 않고 딱 하나의 부모에 대해서만 연관되어 있을 때만 CASCADE를 사용하라!** ex) 게시판 - 첨부파일 관계
+> 
+
+### 고아 객체
+
+```java
+@OneToMany(mappedBy = '', orphanRemuval = true)
+```
+
+- 부모 객체와 연결이 끊기면 자식 객체를 지우는 기능
+- **참조하는 곳이 하나일 때만 사용해야함, 특정 엔티티가 개인 소유할 때 사용**
+- OneToOne, OneToMany만 사용가능
+- 부모 객체를 제거하면 자식객체도 자동으로 삭제된다.
+
+### 영속성 전이 + 고아 객체 : 생명 주기 관리
+
+- CascadeType.ALL + orphanRemuval = true로 설정시
+    - 부모 엔티티가 자식 엔티티의 생명주기를 관리할 수 있다. → 자식 엔티티는 dao, repository를 만들지 않아도 됨
+    - 도메인 주도 설계(DDD)의 Aggregate Root개념을 구현할 때 유용
+        
+        *Aggregate - 어떤 데이터를 하나의 논리적인 개념으로 묶는 패턴 ex) 게시판 - root / 게시판
+
+## JPA 값 타입
+
+### 엔티티 타입
+
+- @Entity로 정의하는 객체
+- 데이터가 변해도(엔티티 안에 컬럼이 모두 변해도) 식별자로 인식이 가능 따라서 **추적이 가능**
+
+### 값 타입
+
+- int, Integer, String처럼 단순히 값으로 사용하는 자바 기본 타입이나 객체
+- 식별자가 없고 값만 있기 때문에 **추적 불가**
+
+### 값 타입 분류
+
+1. 기본값 타입 - 자바 기본 타입(int, double), 래퍼 클래스(Integer, Long), String
+    - 생명주기를 엔티티에 의존함 - 엔티티를 삭제하면 같이 삭제
+    - 값 타입은 공유하면 x (ex. 회원 이름 변경 시 다른 회원의 이름도 함께 변경되면 안됨)
+2. **임베디드 타입**(embedded type, 복합 값 타입)
+3. 컬렉션 값 타입(자바 컬렉션처럼 기본값이나 임베디드 타입을 넣는 리스트 타입)
