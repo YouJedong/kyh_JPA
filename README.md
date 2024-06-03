@@ -642,4 +642,36 @@ public class Member {
     - 생명주기를 엔티티에 의존함 - 엔티티를 삭제하면 같이 삭제
     - 값 타입은 공유하면 x (ex. 회원 이름 변경 시 다른 회원의 이름도 함께 변경되면 안됨)
 2. **임베디드 타입**(embedded type, 복합 값 타입)
+    - 새로운 값 타입을 직접 정의할 수 있다.
+    - 주로 기본 값 타입을 모아서 만들어서 **복합 값 타입**이라고함
+    - int, String과 같은 값타입(엔티티 타입이 아님 따라서 값이 변경되면 끝)
+    - ex) 회원은 이름, 근무 기간, 집 주소를 가진다 → 이름 = name, **근무기간(startDt, endDt), 집 주소(시, 도, 등등)**
+    - 임베디드 타입과 테이블 매핑
+        - 객체와 테이블을 아주 세밀하게 매핑하는 것이 가능
 3. 컬렉션 값 타입(자바 컬렉션처럼 기본값이나 임베디드 타입을 넣는 리스트 타입)
+
+### 임베디드 타입
+
+1. @AttributeOverride: 속성 재정의
+    - 한 엔티티에서 같은 값 타입을 사용하면? → 컬럼 명이 중복됨
+    - 따라서 @AttributeOverrides, @AttributeOverride를 사용해서 컬럼 명 속성을 재정의 한다.
+    
+    ```java
+     //Member.class
+     
+    @Embedded
+    private Address homeAddress;
+    
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "city",
+                    column =@Column(name = "WORK_CITY")),
+            @AttributeOverride(name = "street",
+                    column = @Column(name = "WORK_STREET")),
+            @AttributeOverride(name = "zipcode",
+                    column = @Column(name = "WORK_ZIPCODE"))
+    })
+    private Address workAddress;
+    ```
+    
+2. 임베디드 타입의 값이 null이면 안의 모든 컬럼의 값은 null이다.
