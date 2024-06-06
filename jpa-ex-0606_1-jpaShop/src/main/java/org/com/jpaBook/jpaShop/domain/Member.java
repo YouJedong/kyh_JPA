@@ -9,36 +9,18 @@ import java.util.List;
 import java.util.Set;
 
 @Entity
-public class Member {
+public class Member extends BaseEntity {
 
-    @Id
-    @GeneratedValue
+    @Id @GeneratedValue
     @Column(name = "MEMBER_ID")
     private Long id;
-
-    @Column(name = "USERNAME")
-    private String username;
+    private String name;
 
     @Embedded
-    private Period period;
+    private Address address;
 
-    @Embedded
-    private Address homeAddress;
-
-    @ElementCollection
-    @CollectionTable(name = "FAVORITE_FOOD", joinColumns =
-        @JoinColumn(name = "MEMBER_ID")
-    )
-    @Column(name = "FOOD_NM")
-    private Set<String> favoriteFoods = new HashSet<>();
-
-    @ElementCollection
-    @CollectionTable(name = "ADDRESS", joinColumns =
-        @JoinColumn(name = "MEMBER_ID")
-    )
-    private List<Address> addressHistory = new ArrayList<>();
-
-
+    @OneToMany(mappedBy = "member")
+    private List<Order> orders = new ArrayList<>();
 
     public Long getId() {
         return id;
@@ -48,43 +30,27 @@ public class Member {
         this.id = id;
     }
 
-    public String getUsername() {
-        return username;
+    public String getName() {
+        return name;
     }
 
-    public void setUsername(String username) {
-        this.username = username;
+    public void setName(String name) {
+        this.name = name;
     }
 
-    public Period getPeriod() {
-        return period;
+    public Address getAddress() {
+        return address;
     }
 
-    public void setPeriod(Period period) {
-        this.period = period;
+    public void setAddress(Address address) {
+        this.address = address;
     }
 
-    public Address getHomeAddress() {
-        return homeAddress;
+    public List<Order> getOrders() {
+        return orders;
     }
 
-    public void setHomeAddress(Address homeAddress) {
-        this.homeAddress = homeAddress;
-    }
-
-    public Set<String> getFavoriteFoods() {
-        return favoriteFoods;
-    }
-
-    public void setFavoriteFoods(Set<String> favoriteFoods) {
-        this.favoriteFoods = favoriteFoods;
-    }
-
-    public List<Address> getAddressHistory() {
-        return addressHistory;
-    }
-
-    public void setAddressHistory(List<Address> addressHistory) {
-        this.addressHistory = addressHistory;
+    public void setOrders(List<Order> orders) {
+        this.orders = orders;
     }
 }
