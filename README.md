@@ -675,3 +675,153 @@ public class Member {
     ```
     
 2. 임베디드 타입의 값이 null이면 안의 모든 컬럼의 값은 null이다.
+
+### 값 타입과 불변 객체
+
+- 값 타입은 자바에서 레퍼런스 변수로써 사용하기 때문에 값타입의 값을 변경하면 같은 변수를 사용하는 모든 곳이 변경됨
+    
+    ```java
+    Address adrs = new Address(...생성 시 값 셋팅);
+    
+    member1.setAdrs(adrs);
+    member2.setAdrs(adrs);
+    
+    member1.getAdrs().setCity("newCity");
+    
+    // 이후 JPA에서 member1, member2 모두 newCity로 업데이트 쿼리가 실행된다.
+    ```
+    
+- 따라서 값 타입은 불변 객체로 만들어야한다. → 값타입에 setter를 없앤다.
+    
+    ```java
+    // Address.class
+    Class Address {
+    	
+    	String city;
+    	
+    	....
+    	
+    	
+    	public getCity() {
+    		....
+    	}
+    	
+    	// setter는 만들지 않거나 private으로 설정해서 밖에서 변경하는것을 막자
+    	private setCity() {}
+    
+    }
+    ```
+    
+- 따라서 값타입을 변경하고 싶다면 새로 만들어서 값타입 자체를 교체하는 식으로 수정해야한다.
+    
+    ```java
+    Address adrs = new Address(...생성 시 값 셋팅);
+    
+    member1.setAdrs(adrs);
+    member2.setAdrs(adrs);
+    
+    Address changedAdrs = new Address(...생성 시 값 셋팅, "newCity");
+    member1.setAdrs(changedAdrs);
+    ```
+    
+
+### 값 타입 비교
+
+- 값 타입을 비교 시 ==이 아닌 equal() 로 비교해야한다.
+- 따라서 Object의 equal()을 쓰는것이 아닌 값타입에 override해서 사용한다. + 오버라이드하면서 해시코드도 같이 오버라이드 해야함
+
+## 값 타입 컬렉션
+
+- 값 타입을 엔티티에 하나 이상을 저장할 때 사용(회원 - 좋아하는 음식, 이전 주소들 등등)
+- @ElementCollection, @CollectionTable을 사용해 DB테이블에 맵핑 시킨다.
+    
+    ```java
+    // Member.class
+    public class Member {
+    
+    		......
+    		
+        @ElementCollection
+        @CollectionTable(name = "FAVORITE_FOOD", joinColumns =
+            @JoinColumn(name = "MEMBER_ID")
+        )
+        @Column(name = "FOOD_NM")
+        private Set<String> favoriteFoods = new HashSet<>();
+    
+        @ElementCollection
+        @CollectionTable(name = "ADDRESS", joinColumns =
+            @JoinColumn(name = "MEMBER_ID")
+        )
+        private List<Address> addressHistory = new ArrayList<>();
+    }
+    ```
+    
+- 엔티티 안의 값타입 컬렉션도 엔티티의 생명주기에 따라서 관리된다. → 따라서 영속성 전이(CASECADE) + 고아 객체 제거 기능을 필수로 가지고 있다.
+- 값 타입 컬렉션은 지연로딩이다.
+
+### 값 타입 컬렉션 예시
+
+- 값 타입 컬렉션 안의 값 수정
+    
+    ```java
+    Member m = new Member();
+    m.getAddressHistory().add(new Address("city1", "100"));
+    m.getAddressHistory().add(new Address("city2", "100"));
+    
+    // 값 넣은 후 
+    ---------
+    
+    // 값 수정
+    m.getAddressHistory().remove(new Address("city1", "100")); // 이때 값타입에 equals(), hashCode()가 제대로 정의되어있어야지 제대로 기능을 함!!
+    m.getAddressHistory().add(new Address("newCity", "100"));
+    
+    ```
+    
+    - 하지만 실제 실행되는 쿼리를 보면 컬렉션의 값을 수정할 때 해당 사용자에 매핑되어있는 모든 주소 정보를 삭제한 후 다시 넣는 쿼리가 실행된다. → **값 타입 컬렉션에 제약사항이 있다**
+
+### 값 타입 컬렉션의 제약사항
+
+- 값 타입은 엔티티와 다르게 식별자가 없다.
+- 값은 변경하면 추적하기 어렵다.
+- 값 타입 컬렉션을 변경하면 해당되는 엔티티와 관련된 컬렉션 모두 삭제하고 다시 넣는다.
+- **따라서 값타입 컬렉션을 매핑하는 테이블은 모든 컬럼을 묶어서 기본키로 구성해야함 → null x, 중복 데이터 x**
+
+### 값 타입 컬렉션의 대안
+
+- 실무에서는 값 타입 컬렉션을 쓰지않고 일대다 관계를 고려 → 값 타입을 엔티티로 **승급**시킨다.
+    
+    ```java
+    // 주소 엔티티를 만듬
+    @Entity
+    @TABLE(name = "ADDRESS")
+    class AddressEntity {
+    		
+    		@Id @GeneratedValue
+    		private Long id;
+    		
+    		private Addres address;
+    		
+    		... getter, setter
+    }
+    
+    // Member.class
+    class Member {
+    
+    	....
+    
+      // 값 타입 컬렉션으로 매핑하는 것 대신 일대다 관계로 엔티티로써 매핑
+      //@ElementCollection
+      //@CollectionTable(name = "ADDRESS", joinColumns =
+      //    @JoinColumn(name = "MEMBER_ID")
+      //)
+      @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+      @JoinColumn(name = "MEMBER_ID")
+      private List<Address> addressHistory = new ArrayList<>();
+      
+    }
+    ```
+    
+
+### 값 타입 컬렉션으로만 쓰는 기준
+
+- 정말 단순한 데이터일 때 값타입 컬렉션일때(ex. 사용자의 정보 중 체크박스로 멀티 체크를 하는 정보)
