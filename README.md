@@ -834,3 +834,63 @@ public class Member {
 ### JPQL
 
 - JPQL은 엔티티 객체를 대상으로 쿼리 / SQL은 데이터베이스 테이블을 대상으로 쿼리
+
+## JPQL
+
+### TypeQuery, Query
+
+- TypeQuery - 반환값이 명확할 때 사용함
+    
+    ```java
+    TypeQuery<Member> query = em.createQuery("SELECT m FORM Member AS m", Member.class);
+    ```
+    
+- Query - 반환값이 명확하지 않을 때 사용함
+    - 
+    
+    ```java
+    Query<Member> query = em.createQuery("SELECT m.username, m.age FORM Member AS m");
+    ```
+    
+
+### 결과 조회
+
+- getResultList() - 결과가 하나 이상일 때 리스트 반환, 값이 없으면 빈 리스트 반환
+- getSingleResult() - 결과가 무조건 하나일때 사용, 값이 없거나 2개 이상이면 exception 반환
+
+### 파라미터 바인딩
+
+- 이름 기준
+    
+    ```java
+    Member findMember = em.createQuery("SELECT m FROM Member as m WHERE username = :username", Member.class)
+    	.setParameter("username", "hi");
+    	.getSingleResult()
+    ```
+    
+- 위치 기준 - 쓰지마
+
+### 프로젝션
+
+- select절에서 조회할 대상을 정하는 것
+- 엔티티, 임베디드 타입, 스칼라 타입(숫자, 문자 등 기본 타입)을 지정할 수 있다.
+- 스칼라 타입으로 조회 시 방법
+    - Query타입으로 조회
+    - Object[]로 조회
+    - **new 명령어로 조회 - 클래스 경로를 모두 적어야하는 단점이 있음(나중에 해결할 방법 있음)**
+        
+        ```java
+        // new 명령어로 스칼라 타입 조회
+        List<MemberDTO> result = em.createQuery("SELECT new org.example.jpa.jpql.MemberDTO(m.username, m.age) FROM Member m")
+        	    .getResultList();
+        ```
+        
+
+### 페이징
+
+```java
+List<Member> result = em.createQuery("SELECT m FROM Member m order by m.age desc", Member.class)
+        .setFirstResult(1)
+        .setMaxResults(10)
+        .getResultList();
+```
