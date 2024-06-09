@@ -894,3 +894,124 @@ List<Member> result = em.createQuery("SELECT m FROM Member m order by m.age desc
         .setMaxResults(10)
         .getResultList();
 ```
+
+### 서브쿼리
+
+- JPQL에서 FROM절에는 서브쿼리를 사용할 수 없다!!
+- 그래서 다른 방식으로 풀어야함 (조인 or 네이티브 쿼리 or 쿼리 나누기)
+
+### JPQL 함수
+
+- 사용자 정의 함수 - 사용자가 정의한 함수를 JPQL에서 쓸때는 미리 사용자 함수를 등록하고 사용해야 한다. (사용법은 찾아서 쓰기)
+
+### JPQL 경로 표현식
+
+- 점을 찍어 객체 그래프를 탐색하는 것
+
+```sql
+select m.username -- 상태 필드
+from Member m 
+join m.team t -- 단일 값 연관 필드
+join m.orders o  -- 컬렉션 값 연관 필드
+where t.team = '팀A'
+```
+
+1. 상태 필드 
+    - 단순히 값을 저장하기 위한 필드
+    - 경로 탐색의 끝, 탐색x
+2. 단일 값 연관 필드 
+    - @ManyToOne, @OneToOne → 대상이 엔티티
+    - 묵시적 내부 조인(inner join) 발생, 탐색 o
+        
+        ```sql
+        // jpql
+        String query = "select m.team from Member m"
+        
+        // >> sql 묵시적 내부 조인
+        SELECT t.name, t.id
+        FROM   MEMBER m
+        JOIN   TEAM t
+        ON     m.member_id = t.member_id
+        ```
+        
+3. 컬렉션 값 연관 필드 
+    - @OneToMany, @ManyToMany → 대상이 컬렉션
+    - 묵시적 내부 조인 발생, 탐색x
+        
+        ```sql
+        // jpql -> 묵지적 내부 조인, t.members.name < 이렇게 탐색할 수 없음
+        String query = "select t.members from Team t"
+        
+        // 명시적으로 조인하여 컬렉션에서 탐색해야함
+        String query = "select m.name from Team t join t.memebers m;
+        ```
+        
+
+> **결론 : 묵시적 조인을 쓰지 말고 명시적 조인을 사용하여 실제 sql이 나가는 형식과 비슷하게 jpql을 만들어라**
+> 
+
+### 페치 조인(fecth join)
+
+- jpql에서 성능 최적화를 위한 join 종류
+- 엔티티에 매핑되어있는 단일 객체 조회 시 join fetch를 하면 같이 값을 가지고 옴
+    
+    ```sql
+    String query = "select m from Member m join fetch m.team";
+    ```
+    
+- 엔티티에 매핑되어있는 컬렉션을 조회 시 join fetch를 하면 값을 가지고옴
+    
+    ```sql
+    String query = "select t from Team t join fetch t.members";
+    // -> 하지만 sql특성상 값이 뻥튀기 되어서 같은 엔티티가 중복되어서 나옴
+    // ex) 1팀 안에 2명이 있다면 해당 쿼리를 날렸을 때 1팀에 2명이기 때문에 2개의 row가 나와서 list에 2개가 담겨서 나옴
+    
+    // 따라서 distinct를 사용해서 뽑는다.
+    String query = "select distinct t from Team t join fetch t.members";
+    ```
+    
+    - jpa에서 distinct를 사용 시 2개의 기능을 수행함
+        1. sql의 distinct 기능
+        2. 엔티티가 중복될 때 중복된 엔티티 제거
+- 페치조인과 일반조인의 차이
+    - 일반 조인은 조인을 해도 조인된 엔티티를 함께 조회하지 않는다 → 따라서 해당 엔티티를 사용할때 (ex. team.getMembers();) 쿼리를 한번 더 날림
+
+### 페치 조인의 특징과 한계
+
+- 페치 조인 대상에는 별칭을 줄 수 없다. → 페치 조인 대상은 where절에 사용할 수 없다. 따라서 페치 조인을 사용하면 해당 엔티티와 관련되어 있는 대상을 **모두** 조회하는 식으로 써야한다.
+- 둘 이상의 컬렉션은 페치조인 할 수 없다.
+- 컬렉션 페치 조인을 하면 페이징 API를 사용할 수 없다. → 사용하는 방법은 batch size 설정하는 법이 있음 나중에 찾아보자
+- 실무에서는 글로벌 로딩 전략을 모두 지연 로딩으로 셋팅하고 최적화가 필요한 곳에 페치 조인을 적용하자
+
+> **결론 : 여러 테이블을 조인하여 엔티티가 아닌 다른 모양으로 결과를 내야하면 일반 조인을 사용하여 DTO로 반환하는 것이 효과적이다**
+> 
+
+## 엔티티 직접 사용
+
+- 기본 키 값
+    
+    ```sql
+    // jpql
+    "select count(m) from Member m"
+    
+    // sql 
+    SELECT COUNT(m.id) FROM MEMBER m;
+    ```
+    
+    - JPQL에서 엔티티를 직접 사용하면 SQL에서 해당 엔티티의 기본 키 값을 사용한다.
+- 외래 키 값
+    
+    ```sql
+    "select m from Member m where m.team = :team"
+    ```
+    
+    - 매핑된 엔티티를 그대로 넣으면 해당 엔티티의 외래키(ex. TEAM_ID)가 그대로 들어간다.
+
+## 벌크 연산
+
+- JPA에서 특정 엔티티를 update, delete하는 것 말고 여러개의 데이터를 갱신,삭제하는 기능
+- .excuteUpdate()
+- 주의점
+    - 해당 기능은 영속성 컨텍스트에 담지않고 바로 db에 갱신하기 때문에 다른 영속성 컨텍스트에 담긴 데이터와 꼬일 수 있다. 2가지 방법으로 해결 가능
+    1. 벌크 연산을 먼저 실행
+    2. 벌크 연산을 수행 후 영속성 컨텍스트 초기화
